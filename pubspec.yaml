@@ -31,6 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   file_picker: ^10.3.3
+  file_selector: ^1.1.0
   flutter_secure_storage: ^10.0.0
   shared_preferences: ^2.5.3
   wireguard_flutter_plus: ^1.0.4

@@ -12,30 +12,39 @@ void main() {
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
   });
 
-  test('stores sensitive settings in secure storage instead of shared preferences', () async {
-    final repository = SettingsRepository();
-    final prefs = await SharedPreferences.getInstance();
+  test(
+    'stores sensitive settings in secure storage instead of shared preferences',
+    () async {
+      final repository = SettingsRepository(useSecureStorage: true);
+      final prefs = await SharedPreferences.getInstance();
 
-    await repository.save(
-      AppSettings(
-        proxyPort: 56000,
-        vkCallLink: 'https://vk.ru/call/join/secret',
-        useUdp: true,
-        useTurnMode: true,
-        threads: 8,
-        wgConfigText: '[Interface]\nPrivateKey = secret',
-        wgConfigFileName: 'vpn.conf',
-      ),
-    );
+      await repository.save(
+        AppSettings(
+          proxyPort: 56000,
+          vkCallLink: 'https://vk.ru/call/join/secret',
+          useUdp: true,
+          useTurnMode: true,
+          threads: 8,
+          wgConfigText: '[Interface]\nPrivateKey = secret',
+          wgConfigFileName: 'vpn.conf',
+        ),
+      );
 
-    expect(prefs.getString('vkCallLink'), isNull);
-    expect(prefs.getString('wgConfigText'), isNull);
+      expect(prefs.getString('vkCallLink'), isNull);
+      expect(prefs.getString('wgConfigText'), isNull);
 
-    final storage = FlutterSecureStorage();
-    expect(await storage.read(key: 'vkCallLink'), 'https://vk.ru/call/join/secret');
-    expect(await storage.read(key: 'wgConfigText'), '[Interface]\nPrivateKey = secret');
-    expect(prefs.getString('wgConfigFileName'), 'vpn.conf');
-  });
+      final storage = FlutterSecureStorage();
+      expect(
+        await storage.read(key: 'vkCallLink'),
+        'https://vk.ru/call/join/secret',
+      );
+      expect(
+        await storage.read(key: 'wgConfigText'),
+        '[Interface]\nPrivateKey = secret',
+      );
+      expect(prefs.getString('wgConfigFileName'), 'vpn.conf');
+    },
+  );
 
   test('migrates legacy plaintext secrets out of shared preferences', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -45,7 +54,7 @@ void main() {
       'wgConfigFileName': 'legacy.conf',
     });
 
-    final repository = SettingsRepository();
+    final repository = SettingsRepository(useSecureStorage: true);
     final settings = await repository.load();
     final prefs = await SharedPreferences.getInstance();
     final storage = FlutterSecureStorage();
@@ -55,7 +64,40 @@ void main() {
     expect(settings.wgConfigText, '[Interface]\nPrivateKey = legacy');
     expect(prefs.getString('vkCallLink'), isNull);
     expect(prefs.getString('wgConfigText'), isNull);
-    expect(await storage.read(key: 'vkCallLink'), 'https://vk.ru/call/join/legacy');
-    expect(await storage.read(key: 'wgConfigText'), '[Interface]\nPrivateKey = legacy');
+    expect(
+      await storage.read(key: 'vkCallLink'),
+      'https://vk.ru/call/join/legacy',
+    );
+    expect(
+      await storage.read(key: 'wgConfigText'),
+      '[Interface]\nPrivateKey = legacy',
+    );
   });
+
+  test(
+    'keeps sensitive settings in shared preferences when secure storage is disabled',
+    () async {
+      final repository = SettingsRepository(useSecureStorage: false);
+      final prefs = await SharedPreferences.getInstance();
+
+      await repository.save(
+        AppSettings(
+          proxyPort: 56000,
+          vkCallLink: 'https://vk.ru/call/join/mac',
+          useUdp: true,
+          useTurnMode: true,
+          threads: 8,
+          wgConfigText: '[Interface]\nPrivateKey = mac',
+          wgConfigFileName: 'mac.conf',
+        ),
+      );
+
+      expect(prefs.getString('vkCallLink'), 'https://vk.ru/call/join/mac');
+      expect(prefs.getString('wgConfigText'), '[Interface]\nPrivateKey = mac');
+
+      final storage = FlutterSecureStorage();
+      expect(await storage.read(key: 'vkCallLink'), isNull);
+      expect(await storage.read(key: 'wgConfigText'), isNull);
+    },
+  );
 }

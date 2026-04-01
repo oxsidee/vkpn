@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wireguard_flutter_plus/wireguard_flutter_plus.dart';
@@ -46,12 +47,17 @@ class UnifiedApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
       ),
@@ -68,6 +74,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const file_selector.XTypeGroup _macOsConfigTypeGroup =
+      file_selector.XTypeGroup(
+        label: 'WireGuard config',
+        extensions: <String>['conf', 'txt'],
+        uniformTypeIdentifiers: <String>['public.text'],
+      );
+
   final _settingsRepo = SettingsRepository();
   final _bridge = UnifiedPlatformBridge();
   late final VpnController _controller;
@@ -129,7 +142,9 @@ class _HomePageState extends State<HomePage> {
   void _scrollLogsToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_logScrollController.hasClients) return;
-      _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
+      _logScrollController.jumpTo(
+        _logScrollController.position.maxScrollExtent,
+      );
     });
   }
 
@@ -161,11 +176,14 @@ class _HomePageState extends State<HomePage> {
   bool get _isAndroid => Platform.isAndroid;
   bool get _isDesktop => Platform.isWindows || Platform.isMacOS;
   bool get _isIOS => Platform.isIOS;
+
   /// Network Extension / VPN APIs (WireGuard) are not supported on iOS Simulator — nehelper IPC fails.
   bool get _isIosSimulator =>
-      Platform.isIOS && Platform.environment.containsKey('SIMULATOR_DEVICE_NAME');
+      Platform.isIOS &&
+      Platform.environment.containsKey('SIMULATOR_DEVICE_NAME');
   static const String _appleAppGroup = 'group.space.iscreation.vkpn';
-  static const String _iosProviderBundleId = 'space.iscreation.vkpn.WGExtension';
+  static const String _appleProviderBundleId =
+      'space.iscreation.vkpn.WGExtension';
 
   Future<void> _initCrossPlatformWireGuard() async {
     if (_isAndroid) return;
@@ -222,7 +240,9 @@ class _HomePageState extends State<HomePage> {
       value /= 1024;
       idx++;
     }
-    final fixed = value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+    final fixed = value >= 100
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
     return '$fixed ${units[idx]}';
   }
 
@@ -272,19 +292,39 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _useUdp = settings.useUdp;
       _useTurnMode = settings.useTurnMode;
-      _configFileName = settings.wgConfigFileName.isEmpty ? null : settings.wgConfigFileName;
+      _configFileName = settings.wgConfigFileName.isEmpty
+          ? null
+          : settings.wgConfigFileName;
       _status = runtimeStatus;
     });
   }
 
   Future<void> _pickConfigFile() async {
+    if (Platform.isMacOS) {
+      final file = await file_selector.openFile(
+        acceptedTypeGroups: const <file_selector.XTypeGroup>[
+          _macOsConfigTypeGroup,
+        ],
+        confirmButtonText: 'Import',
+      );
+      if (file == null) return;
+      _configCtrl.text = await file.readAsString();
+      setState(() {
+        _configFileName = file.name;
+      });
+      await _collectSettings();
+      return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       withData: true,
       type: FileType.custom,
       allowedExtensions: const <String>['conf', 'txt'],
     );
-    final file = (result == null || result.files.isEmpty) ? null : result.files.first;
+    final file = (result == null || result.files.isEmpty)
+        ? null
+        : result.files.first;
     if (file?.bytes == null) return;
     _configCtrl.text = String.fromCharCodes(file!.bytes!);
     setState(() {
@@ -310,7 +350,10 @@ class _HomePageState extends State<HomePage> {
   Future<void> _prepareConfig() async {
     try {
       final settings = await _collectSettings();
-      final runtimeConfig = _controller.buildRuntimeConfig(_configCtrl.text, settings);
+      final runtimeConfig = _controller.buildRuntimeConfig(
+        _configCtrl.text,
+        settings,
+      );
       setState(() {
         _runtimeConfig = runtimeConfig;
         _lastError = null;
@@ -346,7 +389,8 @@ class _HomePageState extends State<HomePage> {
       final prepared = await _bridge.prepareVpn();
       if (!prepared) {
         setState(() {
-          _lastError = 'VPN permission required. Allow it and tap Connect again.';
+          _lastError =
+              'VPN permission required. Allow it and tap Connect again.';
         });
         return;
       }
@@ -357,7 +401,11 @@ class _HomePageState extends State<HomePage> {
     final settings = await _collectSettings();
     try {
       if (_isAndroid) {
-        await _bridge.start(config, useUdp: settings.useUdp, threads: settings.threads);
+        await _bridge.start(
+          config,
+          useUdp: settings.useUdp,
+          threads: settings.threads,
+        );
         final newStatus = await _bridge.status();
         setState(() {
           _status = newStatus;
@@ -402,17 +450,22 @@ class _HomePageState extends State<HomePage> {
           wgConfigToUse = config.rewrittenConfig;
         } else if (_isIOS) {
           setState(() {
-            _lastError = 'WG+TURN on iOS is not yet available in this build. Use WG mode.';
+            _lastError =
+                'WG+TURN on iOS is not yet available in this build. Use WG mode.';
           });
           return;
         } else {
-          _appendLogLine('Mode WG+TURN requested; fallback to WG on this platform.');
+          _appendLogLine(
+            'Mode WG+TURN requested; fallback to WG on this platform.',
+          );
         }
       }
       await _wireguard.startVpn(
         serverAddress: '${config.targetHost}:${config.targetPort}',
         wgQuickConfig: wgConfigToUse,
-        providerBundleIdentifier: _isIOS ? _iosProviderBundleId : (Platform.isMacOS ? 'space.iscreation.vkpn.PacketTunnelProvider' : ''),
+        providerBundleIdentifier: (_isIOS || Platform.isMacOS)
+            ? _appleProviderBundleId
+            : '',
       );
       setState(() {
         _status = 'connected';
@@ -482,7 +535,10 @@ class _HomePageState extends State<HomePage> {
               children: <Widget>[
                 Container(
                   margin: const EdgeInsets.only(top: 8, bottom: 14),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xAA163063),
                     borderRadius: BorderRadius.circular(16),
@@ -492,13 +548,21 @@ class _HomePageState extends State<HomePage> {
                     children: <Widget>[
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.asset('assets/vkpn_logo.png', width: 46, height: 46, fit: BoxFit.cover),
+                        child: Image.asset(
+                          'assets/vkpn_logo.png',
+                          width: 46,
+                          height: 46,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text(
                           'VkPN',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       Column(
@@ -507,7 +571,10 @@ class _HomePageState extends State<HomePage> {
                           ToggleButtons(
                             isSelected: <bool>[!_useTurnMode, _useTurnMode],
                             borderRadius: BorderRadius.circular(10),
-                            constraints: const BoxConstraints(minHeight: 30, minWidth: 68),
+                            constraints: const BoxConstraints(
+                              minHeight: 30,
+                              minWidth: 68,
+                            ),
                             onPressed: (index) async {
                               setState(() {
                                 _useTurnMode = index == 1;
@@ -517,29 +584,38 @@ class _HomePageState extends State<HomePage> {
                             children: const <Widget>[
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('WG', style: TextStyle(fontSize: 12)),
+                                child: Text(
+                                  'WG',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('WG+TURN', style: TextStyle(fontSize: 12)),
+                                child: Text(
+                                  'WG+TURN',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white10,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Text(
-                          _status.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _statusColor(),
-                          ),
-                        ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white10,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Text(
+                              _status.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _statusColor(),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -551,7 +627,9 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 6),
                 TextField(
                   controller: _vkLinkCtrl,
-                  decoration: const InputDecoration(hintText: 'https://vk.ru/call/join/...'),
+                  decoration: const InputDecoration(
+                    hintText: 'https://vk.ru/call/join/...',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -565,7 +643,9 @@ class _HomePageState extends State<HomePage> {
                           TextField(
                             controller: _proxyPortCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: '56000'),
+                            decoration: const InputDecoration(
+                              hintText: '56000',
+                            ),
                           ),
                         ],
                       ),
@@ -629,7 +709,10 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 6),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(_lastError!, style: const TextStyle(color: Colors.redAccent)),
+                    child: Text(
+                      _lastError!,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -675,7 +758,10 @@ class _HomePageState extends State<HomePage> {
                     SizedBox(
                       width: 140,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0x40132B57),
                           borderRadius: BorderRadius.circular(12),
@@ -694,7 +780,9 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () {
-                        final sanitizedLogs = _logs.map(sanitizeLogLine).join('\n');
+                        final sanitizedLogs = _logs
+                            .map(sanitizeLogLine)
+                            .join('\n');
                         Clipboard.setData(ClipboardData(text: sanitizedLogs));
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -721,7 +809,13 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: SingleChildScrollView(
                     controller: _logScrollController,
-                    child: Text(_logs.join('\n'), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    child: Text(
+                      _logs.join('\n'),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ),
               ],
