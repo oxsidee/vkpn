@@ -13,6 +13,10 @@
 	<array>
 		<string>group.space.iscreation.vkpn</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)group.space.iscreation.vkpn</string>
+	</array>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>
