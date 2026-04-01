@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VkPN
+Comment=WireGuard and VK TURN client
+Exec=vkpn
+Icon=vkpn
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true

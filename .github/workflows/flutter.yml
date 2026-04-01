@@ -1,0 +1,569 @@
+name: Flutter CI
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Тип сборки для ручного запуска
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
+
+env:
+  BUILD_MODE: ${{ github.event_name == 'pull_request' && 'debug' || github.event_name == 'workflow_dispatch' && github.event.inputs.build_type || 'release' }}
+  FLUTTER_VERSION: "3.41.6"
+
+jobs:
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+
+      - name: Настройка Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Настройка Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Получение зависимостей
+        run: flutter pub get
+
+      - name: Сборка Android APK
+        run: |
+          mkdir -p dist
+
+          if [ "$BUILD_MODE" = "debug" ]; then
+            flutter build apk --debug
+            cp build/app/outputs/flutter-apk/app-debug.apk dist/app-debug.apk
+          else
+            flutter build apk --release
+            cp build/app/outputs/flutter-apk/app-release.apk dist/app-release.apk
+          fi
+
+      - name: Загрузка Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ env.BUILD_MODE }}
+          path: dist/*
+          if-no-files-found: error
+
+  ios:
+    name: Build iOS app
+    runs-on: macos-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+
+      - name: Настройка Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Включение платформ Flutter
+        run: flutter config --enable-ios
+
+      - name: Получение зависимостей
+        run: flutter pub get
+
+      - name: Сборка iOS
+        run: |
+          mkdir -p dist
+
+          if [ "$BUILD_MODE" = "debug" ]; then
+            flutter build ios --debug --simulator
+            APP_PATH="$(find build/ios/iphonesimulator -maxdepth 1 -type d -name '*.app' | head -n 1)"
+
+            if [ -z "$APP_PATH" ]; then
+              echo "Не найден .app после сборки iOS simulator."
+              exit 1
+            fi
+
+            ditto -c -k --keepParent "$APP_PATH" dist/vkpn-ios-debug.zip
+          else
+            flutter build ios --release --no-codesign
+            APP_PATH="$(find build/ios/iphoneos -maxdepth 1 -type d -name '*.app' | head -n 1)"
+
+            if [ -z "$APP_PATH" ]; then
+              echo "Не найден .app после сборки iOS."
+              exit 1
+            fi
+
+            rm -rf Payload
+            mkdir -p Payload
+            cp -R "$APP_PATH" Payload/Runner.app
+            ditto -c -k --keepParent Payload dist/vkpn-ios-release-unsigned.ipa
+          fi
+
+      - name: Загрузка iOS-артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ env.BUILD_MODE }}
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS app
+    runs-on: macos-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+
+      - name: Настройка Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Включение платформ Flutter
+        run: flutter config --enable-macos-desktop
+
+      - name: Получение зависимостей
+        run: flutter pub get
+
+      - name: Подготовка Flutter macOS конфигурации
+        run: flutter build macos --"$BUILD_MODE" --config-only
+
+      - name: Установка CocoaPods зависимостей
+        run: pod install --project-directory=macos
+
+      - name: Сборка macOS
+        run: |
+          mkdir -p dist
+          if [ "$BUILD_MODE" = "debug" ]; then
+            XCODE_CONFIGURATION="Debug"
+          else
+            XCODE_CONFIGURATION="Release"
+          fi
+
+          set -o pipefail
+
+          xcodebuild \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration "$XCODE_CONFIGURATION" \
+            -derivedDataPath build/macos \
+            -resultBundlePath build/macos/Runner.xcresult \
+            -destination 'platform=macOS,arch=arm64' \
+            OBJROOT="$PWD/build/macos/Build/Intermediates.noindex" \
+            SYMROOT="$PWD/build/macos/Build/Products" \
+            VERBOSE_SCRIPT_LOGGING=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            EXCLUDED_ARCHS=x86_64 \
+            build 2>&1 | tee build/macos/xcodebuild.log
+
+          XCODE_STATUS="${PIPESTATUS[0]}"
+
+          if [ "$XCODE_STATUS" -ne 0 ]; then
+            echo "xcodebuild завершился с ошибкой. Последние строки лога:"
+            tail -n 200 build/macos/xcodebuild.log || true
+
+            if [ -d build/macos/Runner.xcresult ]; then
+              echo "Извлечение диагностических сообщений из xcresult:"
+              xcrun xcresulttool get --legacy --path build/macos/Runner.xcresult --format json > build/macos/Runner.xcresult.json || true
+              rg -n '"message"|error:' build/macos/Runner.xcresult.json | tail -n 100 || true
+            fi
+
+            exit "$XCODE_STATUS"
+          fi
+
+          APP_PATH="$(find build/macos/Build/Products -maxdepth 2 -type d -name '*.app' | head -n 1)"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "Не найден .app после сборки macOS."
+            exit 1
+          fi
+
+          ditto -c -k --keepParent "$APP_PATH" "dist/vkpn-macos-$BUILD_MODE.zip"
+          hdiutil create \
+            -volname "VkPN" \
+            -srcfolder "$APP_PATH" \
+            -ov \
+            -format UDZO \
+            "dist/vkpn-macos-$BUILD_MODE.dmg"
+          pkgbuild \
+            --component "$APP_PATH" \
+            --install-location /Applications \
+            "dist/vkpn-macos-$BUILD_MODE.pkg"
+
+      - name: Загрузка macOS-артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ env.BUILD_MODE }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Загрузка macOS логов
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ env.BUILD_MODE }}-logs
+          path: |
+            build/macos/xcodebuild.log
+            build/macos/Runner.xcresult
+            build/macos/Runner.xcresult.json
+          if-no-files-found: ignore
+
+  windows:
+    name: Build Windows app
+    runs-on: windows-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+
+      - name: Настройка Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Включение платформ Flutter
+        run: flutter config --enable-windows-desktop
+
+      - name: Получение зависимостей
+        run: flutter pub get
+
+      - name: Подготовка версии приложения
+        id: version
+        shell: pwsh
+        run: |
+          $match = Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)'
+          if (-not $match) {
+            throw 'Не удалось определить версию приложения из pubspec.yaml.'
+          }
+
+          "app_version=$($match.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
+
+      - name: Сборка Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $runnerMode = if ($env:BUILD_MODE -eq 'debug') { 'Debug' } else { 'Release' }
+
+          flutter build windows "--$env:BUILD_MODE"
+
+          Compress-Archive -Path "build/windows/x64/runner/$runnerMode/*" -DestinationPath "dist/vkpn-windows-x64-$env:BUILD_MODE.zip" -Force
+
+      - name: Установка Inno Setup
+        run: choco install innosetup -y
+
+      - name: Сборка Windows installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+        run: |
+          $runnerMode = if ($env:BUILD_MODE -eq 'debug') { 'Debug' } else { 'Release' }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          $sourceDir = Join-Path $PWD "build/windows/x64/runner/$runnerMode"
+
+          & $iscc `
+            "/DAppVersion=$env:APP_VERSION" `
+            "/DSourceDir=$sourceDir" `
+            "/DOutputDir=$PWD/dist" `
+            "$PWD/packaging/windows/vkpn.iss"
+
+      - name: Загрузка Windows-артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ env.BUILD_MODE }}
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+
+      - name: Установка зависимостей Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libgtk-3-dev ninja-build pkg-config
+
+      - name: Настройка Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Включение платформ Flutter
+        run: flutter config --enable-linux-desktop
+
+      - name: Получение зависимостей
+        run: flutter pub get
+
+      - name: Подготовка версии приложения
+        id: version
+        run: |
+          APP_VERSION="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml | head -n 1)"
+
+          if [ -z "$APP_VERSION" ]; then
+            echo "Не удалось определить версию приложения из pubspec.yaml."
+            exit 1
+          fi
+
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Сборка Linux
+        run: |
+          mkdir -p dist
+          flutter build linux --"$BUILD_MODE"
+          tar -C "build/linux/x64/$BUILD_MODE" -czf "dist/vkpn-linux-x64-$BUILD_MODE.tar.gz" bundle
+
+      - name: Сборка Linux DEB
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+        run: bash packaging/linux/build-deb.sh "$BUILD_MODE" "$APP_VERSION"
+
+      - name: Сборка Linux AppImage
+        run: bash packaging/linux/build-appimage.sh "$BUILD_MODE"
+
+      - name: Загрузка Linux-артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ env.BUILD_MODE }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release')
+    name: Create GitHub Release
+    needs:
+      - android
+      - ios
+      - macos
+      - windows
+      - linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Загрузка release Android
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: dist
+
+      - name: Загрузка release iOS
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release
+          path: dist
+
+      - name: Загрузка release macOS
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: dist
+
+      - name: Загрузка release Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: dist
+
+      - name: Загрузка release Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-release
+          path: dist
+
+      - name: Подготовка данных релиза
+        id: meta
+        run: |
+          LATEST_TAG="$(git tag -l | grep -E '^(v)?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          PREFIX=""
+          BASE_VERSION="$LATEST_TAG"
+
+          if [ -z "$LATEST_TAG" ]; then
+            BASE_VERSION="0.0.0"
+          elif [ "${LATEST_TAG#v}" != "$LATEST_TAG" ]; then
+            PREFIX="v"
+            BASE_VERSION="${LATEST_TAG#v}"
+          fi
+
+          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+
+          if [ -n "$LATEST_TAG" ]; then
+            RANGE="$LATEST_TAG..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          COMMITS="$(git log --no-merges --format='%s' "$RANGE")"
+          BUMP=""
+
+          if printf '%s\n' "$COMMITS" | grep -Eiq '^break([(:! ]|$)'; then
+            BUMP="major"
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif printf '%s\n' "$COMMITS" | grep -Eiq '^feat([(:! ]|$)'; then
+            BUMP="minor"
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif printf '%s\n' "$COMMITS" | grep -Eiq '^fix([(:! ]|$)'; then
+            BUMP="patch"
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          NEXT_TAG="${PREFIX}${NEXT_VERSION}"
+
+          {
+            echo "previous_tag=$LATEST_TAG"
+            echo "range=$RANGE"
+            echo "bump=$BUMP"
+            echo "should_release=$([ -n "$BUMP" ] && echo true || echo false)"
+            echo "tag_name=$NEXT_TAG"
+            echo "release_name=$NEXT_TAG"
+            echo "android_name=vkpn-${NEXT_TAG}-android.apk"
+            echo "ios_name=vkpn-${NEXT_TAG}-ios-unsigned.ipa"
+            echo "macos_zip_name=vkpn-${NEXT_TAG}-macos.zip"
+            echo "macos_dmg_name=vkpn-${NEXT_TAG}-macos.dmg"
+            echo "macos_pkg_name=vkpn-${NEXT_TAG}-macos.pkg"
+            echo "windows_zip_name=vkpn-${NEXT_TAG}-windows-x64.zip"
+            echo "windows_setup_name=vkpn-${NEXT_TAG}-windows-x64-setup.exe"
+            echo "linux_tar_name=vkpn-${NEXT_TAG}-linux-x64.tar.gz"
+            echo "linux_deb_name=vkpn-${NEXT_TAG}-linux-amd64.deb"
+            echo "linux_appimage_name=vkpn-${NEXT_TAG}-linux-x64.AppImage"
+            echo "body_path=release-notes.md"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Формирование заметок к релизу
+        id: notes
+        if: steps.meta.outputs.should_release == 'true'
+        env:
+          PREVIOUS_TAG: ${{ steps.meta.outputs.previous_tag }}
+          NEXT_TAG: ${{ steps.meta.outputs.tag_name }}
+          RANGE: ${{ steps.meta.outputs.range }}
+        run: |
+          strip_prefix() {
+            sed -E 's/^(feat|fix|break)([(!:]|[[:space:]])+[[:space:]]*//I'
+          }
+
+          FEATURES="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^feat([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
+          FIXES="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^fix([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
+          BREAKING="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^break([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
+
+          {
+            echo "body_path=release-notes.md"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            if [ -n "$BREAKING" ]; then
+              echo "### Несовместимые изменения"
+              echo
+              printf '%s\n' "$BREAKING" | sed 's/^/- /'
+              echo
+            fi
+
+            if [ -n "$FEATURES" ]; then
+              echo "### Новые функции"
+              echo
+              printf '%s\n' "$FEATURES" | sed 's/^/- /'
+              echo
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### Исправление багов"
+              echo
+              printf '%s\n' "$FIXES" | sed 's/^/- /'
+              echo
+            fi
+          } > release-notes.md
+
+      - name: Переименование release артефактов
+        if: steps.meta.outputs.should_release == 'true'
+        env:
+          ANDROID_NAME: ${{ steps.meta.outputs.android_name }}
+          IOS_NAME: ${{ steps.meta.outputs.ios_name }}
+          MACOS_ZIP_NAME: ${{ steps.meta.outputs.macos_zip_name }}
+          MACOS_DMG_NAME: ${{ steps.meta.outputs.macos_dmg_name }}
+          MACOS_PKG_NAME: ${{ steps.meta.outputs.macos_pkg_name }}
+          WINDOWS_ZIP_NAME: ${{ steps.meta.outputs.windows_zip_name }}
+          WINDOWS_SETUP_NAME: ${{ steps.meta.outputs.windows_setup_name }}
+          LINUX_TAR_NAME: ${{ steps.meta.outputs.linux_tar_name }}
+          LINUX_DEB_NAME: ${{ steps.meta.outputs.linux_deb_name }}
+          LINUX_APPIMAGE_NAME: ${{ steps.meta.outputs.linux_appimage_name }}
+        run: |
+          mv dist/app-release.apk "dist/$ANDROID_NAME"
+          mv dist/vkpn-ios-release-unsigned.ipa "dist/$IOS_NAME"
+          mv dist/vkpn-macos-release.zip "dist/$MACOS_ZIP_NAME"
+          mv dist/vkpn-macos-release.dmg "dist/$MACOS_DMG_NAME"
+          mv dist/vkpn-macos-release.pkg "dist/$MACOS_PKG_NAME"
+          mv dist/vkpn-windows-x64-release.zip "dist/$WINDOWS_ZIP_NAME"
+          mv dist/vkpn-windows-x64-setup.exe "dist/$WINDOWS_SETUP_NAME"
+          mv dist/vkpn-linux-x64-release.tar.gz "dist/$LINUX_TAR_NAME"
+          mv dist/vkpn-linux-amd64-release.deb "dist/$LINUX_DEB_NAME"
+          mv dist/vkpn-linux-x64-release.AppImage "dist/$LINUX_APPIMAGE_NAME"
+
+      - name: Создание релиза
+        if: steps.meta.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/${{ steps.meta.outputs.android_name }}
+            dist/${{ steps.meta.outputs.ios_name }}
+            dist/${{ steps.meta.outputs.macos_zip_name }}
+            dist/${{ steps.meta.outputs.macos_dmg_name }}
+            dist/${{ steps.meta.outputs.macos_pkg_name }}
+            dist/${{ steps.meta.outputs.windows_zip_name }}
+            dist/${{ steps.meta.outputs.windows_setup_name }}
+            dist/${{ steps.meta.outputs.linux_tar_name }}
+            dist/${{ steps.meta.outputs.linux_deb_name }}
+            dist/${{ steps.meta.outputs.linux_appimage_name }}
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.meta.outputs.release_name }}
+          body_path: ${{ steps.meta.outputs.body_path }}
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Пропуск релиза без семантических коммитов
+        if: steps.meta.outputs.should_release != 'true'
+        run: |
+          echo "Новый релиз не создан."
+          echo "После последнего тега не найдено коммитов с префиксами break, feat или fix."
