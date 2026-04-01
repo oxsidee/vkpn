@@ -93,9 +93,9 @@
 ## Сборка (кратко)
 
 - Flutter SDK, в проекте: `flutter pub get`.  
+- Перед сборкой Android, macOS или Windows скачайте upstream-бинарники: `bash scripts/fetch_vkturn_binaries.sh all`.  
 - **Android:** `flutter build apk` / запуск из IDE.  
 - **iOS / macOS:** Xcode, CocoaPods (`pod install` в `ios/` или `macos/`), подпись и capabilities по таблице выше.  
 - **Windows:** Visual Studio / CMake, как в стандартной инструкции Flutter для Windows.
 
 ---
-

@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated upstream vk-turn binaries
+/assets/bin/
+/android/app/src/main/jniLibs/

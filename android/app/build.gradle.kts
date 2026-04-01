@@ -6,6 +6,7 @@ plugins {
 }
 
 val signingKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val signingKeystoreType = System.getenv("ANDROID_KEYSTORE_TYPE")
 val signingKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val signingKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val signingKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
@@ -49,6 +50,7 @@ android {
         if (hasReleaseSigning) {
             create("release") {
                 storeFile = file(signingKeystorePath!!)
+                storeType = signingKeystoreType
                 storePassword = signingKeystorePassword
                 keyAlias = signingKeyAlias
                 keyPassword = signingKeyPassword
