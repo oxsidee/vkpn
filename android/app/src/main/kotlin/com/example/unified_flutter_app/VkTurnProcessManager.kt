@@ -24,7 +24,10 @@ class VkTurnProcessManager(
         if (useUdp) {
             args.add("-udp")
         }
-        onLog("vk-turn cmd: ${args.joinToString(" ")}")
+        onLog(
+            "vk-turn cmd: $executable -peer $targetHost:$proxyPort -vk-link [REDACTED] " +
+                "-listen $localEndpoint -n $threads${if (useUdp) " -udp" else ""}"
+        )
         process = ProcessBuilder(args)
             .redirectErrorStream(true)
             .start()

@@ -31,7 +31,10 @@ class DesktopTurnRuntime {
       threads.toString(),
       if (useUdp) '-udp',
     ];
-    onLog('Desktop TURN cmd: $binaryPath ${args.join(' ')}');
+    onLog(
+      'Desktop TURN cmd: $binaryPath -peer $targetHost:$proxyPort -vk-link [REDACTED] '
+      '-listen 127.0.0.1:9000 -n $threads${useUdp ? ' -udp' : ''}',
+    );
     _process = await Process.start(binaryPath, args);
     _stdoutSub = _process!.stdout
         .transform(SystemEncoding().decoder)

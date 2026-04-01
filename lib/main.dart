@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:wireguard_flutter_plus/wireguard_flutter_plus.dart';
 
 import 'application/app_settings.dart';
+import 'application/log_sanitizer.dart';
 import 'application/settings_repository.dart';
 import 'application/vpn_controller.dart';
 import 'domain/wg_config.dart';
@@ -102,16 +103,7 @@ class _HomePageState extends State<HomePage> {
     _controller = VpnController(parser: WgConfigParser(), bridge: _bridge);
     _loadSettings();
     _initCrossPlatformWireGuard();
-    _logSub = _bridge.logs().listen((line) {
-      if (!mounted) return;
-      setState(() {
-        _logs.add(line);
-        if (_logs.length > 200) {
-          _logs.removeAt(0);
-        }
-      });
-      _scrollLogsToBottom();
-    });
+    _logSub = _bridge.logs().listen(_appendLogLine);
     _startTrafficPolling();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkBatteryOptimizationOnLaunch();
@@ -139,6 +131,18 @@ class _HomePageState extends State<HomePage> {
       if (!_logScrollController.hasClients) return;
       _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
     });
+  }
+
+  void _appendLogLine(String line) {
+    if (!mounted) return;
+    final sanitized = sanitizeLogLine(line);
+    setState(() {
+      _logs.add(sanitized);
+      if (_logs.length > 200) {
+        _logs.removeAt(0);
+      }
+    });
+    _scrollLogsToBottom();
   }
 
   void _startTrafficPolling() {
@@ -393,14 +397,7 @@ class _HomePageState extends State<HomePage> {
             vkCallLink: _vkLinkCtrl.text.trim(),
             useUdp: settings.useUdp,
             threads: settings.threads,
-            onLog: (line) {
-              if (!mounted) return;
-              setState(() {
-                _logs.add(line);
-                if (_logs.length > 200) _logs.removeAt(0);
-              });
-              _scrollLogsToBottom();
-            },
+            onLog: _appendLogLine,
           );
           wgConfigToUse = config.rewrittenConfig;
         } else if (_isIOS) {
@@ -409,10 +406,7 @@ class _HomePageState extends State<HomePage> {
           });
           return;
         } else {
-          setState(() {
-            _logs.add('Mode WG+TURN requested; fallback to WG on this platform.');
-            if (_logs.length > 200) _logs.removeAt(0);
-          });
+          _appendLogLine('Mode WG+TURN requested; fallback to WG on this platform.');
         }
       }
       await _wireguard.startVpn(
@@ -700,7 +694,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () {
-                        Clipboard.setData(ClipboardData(text: _logs.join('\n')));
+                        final sanitizedLogs = _logs.map(sanitizeLogLine).join('\n');
+                        Clipboard.setData(ClipboardData(text: sanitizedLogs));
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Logs copied')),

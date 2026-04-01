@@ -142,9 +142,40 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun emitLog(message: String) {
+        val sanitized = sanitizeLogMessage(message)
         runOnUiThread {
-            eventSink?.success(message)
+            eventSink?.success(sanitized)
         }
+    }
+
+    private fun sanitizeLogMessage(message: String): String {
+        var sanitized = message
+        sanitized = sanitized.replace(Regex("(-peer\\s+)(\\S+)", RegexOption.IGNORE_CASE), "$1[REDACTED]")
+        sanitized = sanitized.replace(Regex("(-vk-link\\s+)(\\S+)", RegexOption.IGNORE_CASE), "$1[REDACTED]")
+        sanitized = sanitized.replace(Regex("https://vk\\.(?:ru|com)/call/join/\\S+", RegexOption.IGNORE_CASE), "[REDACTED]")
+        val sensitiveKeys = listOf(
+            "access_token",
+            "anonymToken",
+            "client_secret",
+            "joinLink",
+            "session_key",
+            "vkCallLink",
+            "vk_join_link"
+        )
+        for (key in sensitiveKeys) {
+            sanitized = sanitized.replace(
+                Regex("(${Regex.escape(key)}=)[^&\\s]+", RegexOption.IGNORE_CASE),
+                "$1[REDACTED]"
+            )
+        }
+        sanitized = sanitized.replace(
+            Regex(
+                "^(\\s*(?:PrivateKey|PresharedKey)\\s*=\\s*).*$",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
+            ),
+            "$1[REDACTED]"
+        )
+        return sanitized
     }
 
     private fun ensureExcludedApplication(configText: String, appPackage: String): String {
