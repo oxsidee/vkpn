@@ -323,6 +323,20 @@ jobs:
             exit 1
           fi
 
+          echo "Ad-hoc codesign macOS app bundle: $APP_PATH"
+
+          # Sign nested code first so pkgbuild receives a runnable bundle even without Apple CI certificates.
+          while IFS= read -r -d '' nested_code; do
+            codesign --force --sign - --timestamp=none "$nested_code"
+          done < <(
+            find "$APP_PATH/Contents" -depth \
+              \( -name '*.dylib' -o -name '*.framework' -o -name '*.bundle' -o -name '*.xpc' -o -name '*.appex' \) \
+              -print0 2>/dev/null
+          )
+
+          codesign --force --deep --sign - --timestamp=none "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
           pkgbuild \
             --component "$APP_PATH" \
             --install-location /Applications \
