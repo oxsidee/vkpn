@@ -28,4 +28,27 @@ PersistentKeepalive = 25
     final rewritten = parser.rewriteEndpoint(sample, host: '127.0.0.1', port: 9000);
     expect(rewritten.contains('Endpoint = 127.0.0.1:9000'), isTrue);
   });
+
+  test('mergeExcludedApplications inserts line in Interface', () {
+    final parser = WgConfigParser();
+    final out = parser.mergeExcludedApplications(sample, <String>['com.example.app']);
+    expect(out.contains('ExcludedApplications = com.example.app'), isTrue);
+  });
+
+  test('mergeExcludedApplications merges with existing', () {
+    final parser = WgConfigParser();
+    const withExcluded = '''
+[Interface]
+Address = 10.0.0.3/32
+PrivateKey = testPrivate
+ExcludedApplications = com.old.app
+
+[Peer]
+PublicKey = testPublic
+AllowedIPs = 0.0.0.0/0
+Endpoint = 194.180.206.205:51820
+''';
+    final out = parser.mergeExcludedApplications(withExcluded, <String>['com.new.app']);
+    expect(out.contains('ExcludedApplications = com.old.app, com.new.app'), isTrue);
+  });
 }

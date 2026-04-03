@@ -91,7 +91,7 @@ class MainActivity : FlutterActivity() {
                                 }
                                 VpnRuntime.start(
                                     useTurnMode = useTurnMode,
-                                    rewritten = if (useTurnMode) ensureExcludedApplication(rewritten, packageName) else rewritten,
+                                    rewritten = rewritten,
                                     targetHost = targetHost,
                                     proxyPort = proxyPort,
                                     vkCallLink = vkCallLink,
@@ -123,6 +123,31 @@ class MainActivity : FlutterActivity() {
                         val (rx, tx) = VpnRuntime.trafficStats()
                         result.success(mapOf("rxBytes" to rx, "txBytes" to tx))
                     }
+                    "listInstalledApps" -> {
+                        Thread {
+                            try {
+                                val pm = packageManager
+                                val intent = Intent(Intent.ACTION_MAIN).apply {
+                                    addCategory(Intent.CATEGORY_LAUNCHER)
+                                }
+                                val activities = pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+                                val seen = LinkedHashSet<String>()
+                                val out = ArrayList<Map<String, String>>()
+                                for (ri in activities) {
+                                    val pkg = ri.activityInfo?.packageName ?: continue
+                                    if (!seen.add(pkg)) continue
+                                    val label = ri.loadLabel(pm).toString()
+                                    out.add(mapOf("id" to pkg, "label" to label))
+                                }
+                                out.sortBy { it["label"] as String }
+                                runOnUiThread { result.success(out) }
+                            } catch (e: Exception) {
+                                runOnUiThread {
+                                    result.error("LIST_APPS_FAILED", e.message, null)
+                                }
+                            }
+                        }.start()
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -145,60 +170,6 @@ class MainActivity : FlutterActivity() {
         runOnUiThread {
             eventSink?.success(message)
         }
-    }
-
-    private fun ensureExcludedApplication(configText: String, appPackage: String): String {
-        val lines = configText.split('\n').toMutableList()
-        var inInterface = false
-        var interfaceStart = -1
-        var excludedLineIndex = -1
-
-        for (i in lines.indices) {
-            val trimmed = lines[i].trim()
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                inInterface = trimmed.equals("[Interface]", ignoreCase = true)
-                if (inInterface) {
-                    interfaceStart = i
-                }
-                continue
-            }
-            if (!inInterface) continue
-            if (trimmed.startsWith("ExcludedApplications", ignoreCase = true) && trimmed.contains("=")) {
-                excludedLineIndex = i
-                break
-            }
-        }
-
-        if (excludedLineIndex >= 0) {
-            val current = lines[excludedLineIndex]
-            val parts = current.split("=", limit = 2)
-            val existing = if (parts.size == 2) parts[1] else ""
-            val apps = existing
-                .split(',')
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .toMutableList()
-            if (!apps.contains(appPackage)) {
-                apps.add(appPackage)
-            }
-            lines[excludedLineIndex] = "ExcludedApplications = ${apps.joinToString(", ")}"
-            emitLog("Android: excluded app from WG tunnel: $appPackage")
-            return lines.joinToString("\n")
-        }
-
-        if (interfaceStart >= 0) {
-            var insertAt = interfaceStart + 1
-            while (insertAt < lines.size) {
-                val t = lines[insertAt].trim()
-                if (t.startsWith("[") && t.endsWith("]")) break
-                insertAt++
-            }
-            lines.add(insertAt, "ExcludedApplications = $appPackage")
-            emitLog("Android: added ExcludedApplications for $appPackage")
-            return lines.joinToString("\n")
-        }
-
-        return configText
     }
 
     private fun requestRuntimePermissions(result: MethodChannel.Result) {

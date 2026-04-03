@@ -10,6 +10,7 @@ class SettingsRepository {
   static const _kThreads = 'threads';
   static const _kWgConfigText = 'wgConfigText';
   static const _kWgConfigFileName = 'wgConfigFileName';
+  static const _kExcludedAppPackages = 'excludedAppPackages';
 
   Future<AppSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -21,6 +22,7 @@ class SettingsRepository {
       threads: prefs.getInt(_kThreads) ?? 8,
       wgConfigText: prefs.getString(_kWgConfigText) ?? '',
       wgConfigFileName: prefs.getString(_kWgConfigFileName) ?? '',
+      excludedAppPackages: prefs.getString(_kExcludedAppPackages) ?? '',
     );
   }
 
@@ -33,5 +35,6 @@ class SettingsRepository {
     await prefs.setInt(_kThreads, settings.threads);
     await prefs.setString(_kWgConfigText, settings.wgConfigText);
     await prefs.setString(_kWgConfigFileName, settings.wgConfigFileName);
+    await prefs.setString(_kExcludedAppPackages, settings.excludedAppPackages);
   }
 }

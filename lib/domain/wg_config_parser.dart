@@ -57,6 +57,72 @@ class WgConfigParser {
     return WgConfig(interface: iface, peer: peer);
   }
 
+  /// Merges Android-only [Interface].ExcludedApplications (WireGuard Android / wg-quick).
+  /// Package names are comma-separated; duplicates are removed.
+  String mergeExcludedApplications(String configText, Iterable<String> packageNames) {
+    final packages = packageNames
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (packages.isEmpty) {
+      return configText;
+    }
+    final lines = configText.split('\n').toList();
+    var inInterface = false;
+    var interfaceStart = -1;
+    var excludedLineIndex = -1;
+
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        inInterface = trimmed.toLowerCase() == '[interface]';
+        if (inInterface) {
+          interfaceStart = i;
+        }
+        continue;
+      }
+      if (!inInterface) {
+        continue;
+      }
+      if (trimmed.toLowerCase().startsWith('excludedapplications') && trimmed.contains('=')) {
+        excludedLineIndex = i;
+        break;
+      }
+    }
+
+    final merged = <String>{};
+    if (excludedLineIndex >= 0) {
+      final current = lines[excludedLineIndex];
+      final idx = current.indexOf('=');
+      final existing = idx >= 0 ? current.substring(idx + 1) : '';
+      for (final p in existing.split(',')) {
+        final t = p.trim();
+        if (t.isNotEmpty) {
+          merged.add(t);
+        }
+      }
+    }
+    merged.addAll(packages);
+    final line = 'ExcludedApplications = ${merged.join(', ')}';
+
+    if (excludedLineIndex >= 0) {
+      lines[excludedLineIndex] = line;
+    } else if (interfaceStart >= 0) {
+      var insertAt = interfaceStart + 1;
+      while (insertAt < lines.length) {
+        final t = lines[insertAt].trim();
+        if (t.startsWith('[') && t.endsWith(']')) {
+          break;
+        }
+        insertAt++;
+      }
+      lines.insert(insertAt, line);
+    } else {
+      return configText;
+    }
+    return lines.join('\n');
+  }
+
   String rewriteEndpoint(String input, {required String host, required int port}) {
     final lines = input.split('\n');
     final rewritten = <String>[];

@@ -1,5 +1,7 @@
 # VkPN
 
+Сотрудничество и коллаборации: tg @R_NBAH
+
 Спасибо авторам исходных проектов, на которых основана идея и клиентская часть:
 
 - **[vk-turn-proxy](https://github.com/cacggghp/vk-turn-proxy)** — сервер и Go-клиент, проброс трафика WireGuard через TURN VK-звонков (DTLS, STUN ChannelData и т.д.).

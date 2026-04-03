@@ -7,6 +7,7 @@ class AppSettings {
     required this.threads,
     required this.wgConfigText,
     required this.wgConfigFileName,
+    required this.excludedAppPackages,
   });
 
   final int proxyPort;
@@ -16,6 +17,8 @@ class AppSettings {
   final int threads;
   final String wgConfigText;
   final String wgConfigFileName;
+  /// Android: package names (comma or newline), [Interface] ExcludedApplications — bypass VPN.
+  final String excludedAppPackages;
 
   factory AppSettings.defaults() {
     return AppSettings(
@@ -26,6 +29,7 @@ class AppSettings {
       threads: 8,
       wgConfigText: '',
       wgConfigFileName: '',
+      excludedAppPackages: '',
     );
   }
 }

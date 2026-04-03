@@ -13,16 +13,35 @@ class VpnController {
   final UnifiedPlatformBridge bridge;
   static const String localEndpointHost = '127.0.0.1';
   static const int localEndpointPort = 9000;
+  /// Must stay excluded in WG+TURN so local vk-turn traffic is not looped into the tunnel.
+  static const String androidVkpnPackageId = 'space.iscreation.vkpn';
 
-  RuntimeVpnConfig buildRuntimeConfig(String rawConfig, AppSettings settings) {
+  RuntimeVpnConfig buildRuntimeConfig(
+    String rawConfig,
+    AppSettings settings, {
+    required bool isAndroid,
+  }) {
     final parsed = parser.parse(rawConfig);
-    final rewritten = settings.useTurnMode
+    var rewritten = settings.useTurnMode
         ? parser.rewriteEndpoint(
             rawConfig,
             host: localEndpointHost,
             port: localEndpointPort,
           )
         : rawConfig;
+    if (isAndroid) {
+      final extra = <String>[];
+      for (final part in settings.excludedAppPackages.split(RegExp(r'[,\n]'))) {
+        final p = part.trim();
+        if (p.isNotEmpty) {
+          extra.add(p);
+        }
+      }
+      if (settings.useTurnMode) {
+        extra.add(androidVkpnPackageId);
+      }
+      rewritten = parser.mergeExcludedApplications(rewritten, extra);
+    }
     return RuntimeVpnConfig(
       rawConfig: rawConfig,
       rewrittenConfig: rewritten,

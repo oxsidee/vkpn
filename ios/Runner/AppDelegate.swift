@@ -60,6 +60,9 @@ import UIKit
           result(true)
         case "requestDisableBatteryOptimization":
           result(nil)
+        case "listInstalledApps":
+          // iOS does not allow enumerating third-party installed apps.
+          result([])
         default:
           result(FlutterMethodNotImplemented)
         }

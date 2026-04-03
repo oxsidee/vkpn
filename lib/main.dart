@@ -9,9 +9,11 @@ import 'package:wireguard_flutter_plus/wireguard_flutter_plus.dart';
 import 'application/app_settings.dart';
 import 'application/settings_repository.dart';
 import 'application/vpn_controller.dart';
+import 'domain/installed_app.dart';
 import 'domain/wg_config.dart';
 import 'domain/wg_config_parser.dart';
 import 'platform/desktop_turn_runtime.dart';
+import 'platform/installed_apps_loader.dart';
 import 'platform/unified_platform_bridge.dart';
 
 void main() {
@@ -76,6 +78,7 @@ class _HomePageState extends State<HomePage> {
   final _vkLinkCtrl = TextEditingController();
   final _proxyPortCtrl = TextEditingController();
   final _threadsCtrl = TextEditingController();
+  final _excludedAppsCtrl = TextEditingController();
 
   bool _useUdp = true;
   bool _useTurnMode = true;
@@ -126,6 +129,7 @@ class _HomePageState extends State<HomePage> {
     _vkLinkCtrl.dispose();
     _proxyPortCtrl.dispose();
     _threadsCtrl.dispose();
+    _excludedAppsCtrl.dispose();
     _trafficTimer?.cancel();
     _wgStageSub?.cancel();
     _wgTrafficSub?.cancel();
@@ -252,6 +256,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Set<String> _parseExcludedAppIds() {
+    return _excludedAppsCtrl.text
+        .split(RegExp(r'[,\n]'))
+        .map((String e) => e.trim())
+        .where((String e) => e.isNotEmpty)
+        .toSet();
+  }
+
+  String _excludedAppsSummary() {
+    final Set<String> ids = _parseExcludedAppIds();
+    if (ids.isEmpty) {
+      return 'None selected';
+    }
+    if (ids.length <= 4) {
+      return ids.join(', ');
+    }
+    return '${ids.length} apps selected';
+  }
+
+  Future<void> _openExcludedAppsPicker() async {
+    final Set<String>? picked = await showModalBottomSheet<Set<String>?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0A1D45),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext ctx) => _ExcludedAppsPickerSheet(
+        initialIds: _parseExcludedAppIds(),
+        isIos: _isIOS,
+      ),
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _excludedAppsCtrl.text = picked.join(', ');
+    });
+    await _collectSettings();
+  }
+
   Color _statusColor() {
     final s = _status.toLowerCase();
     if (s == 'connected') return const Color(0xFF4ADE80);
@@ -264,6 +309,7 @@ class _HomePageState extends State<HomePage> {
     _vkLinkCtrl.text = settings.vkCallLink;
     _proxyPortCtrl.text = settings.proxyPort.toString();
     _threadsCtrl.text = settings.threads.toString();
+    _excludedAppsCtrl.text = settings.excludedAppPackages;
     _configCtrl.text = settings.wgConfigText;
     setState(() {
       _useUdp = settings.useUdp;
@@ -298,6 +344,7 @@ class _HomePageState extends State<HomePage> {
       threads: int.tryParse(_threadsCtrl.text.trim()) ?? 8,
       wgConfigText: _configCtrl.text,
       wgConfigFileName: _configFileName ?? '',
+      excludedAppPackages: _excludedAppsCtrl.text,
     );
     await _settingsRepo.save(settings);
     return settings;
@@ -306,7 +353,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _prepareConfig() async {
     try {
       final settings = await _collectSettings();
-      final runtimeConfig = _controller.buildRuntimeConfig(_configCtrl.text, settings);
+      final runtimeConfig = _controller.buildRuntimeConfig(
+        _configCtrl.text,
+        settings,
+        isAndroid: _isAndroid,
+      );
       setState(() {
         _runtimeConfig = runtimeConfig;
         _lastError = null;
@@ -600,6 +651,27 @@ class _HomePageState extends State<HomePage> {
                   value: _useUdp,
                   onChanged: (v) => setState(() => _useUdp = v),
                 ),
+                const SizedBox(height: 8),
+                _buildFieldTitle('Excluded apps (bypass VPN)'),
+                const SizedBox(height: 4),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFF132B57),
+                    side: BorderSide.none,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: _openExcludedAppsPicker,
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Icon(Icons.apps_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text('Select installed apps…'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -750,5 +822,222 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+}
+
+class _ExcludedAppsPickerSheet extends StatefulWidget {
+  const _ExcludedAppsPickerSheet({
+    required this.initialIds,
+    required this.isIos,
+  });
+
+  final Set<String> initialIds;
+  final bool isIos;
+
+  @override
+  State<_ExcludedAppsPickerSheet> createState() => _ExcludedAppsPickerSheetState();
+}
+
+class _ExcludedAppsPickerSheetState extends State<_ExcludedAppsPickerSheet> {
+  late final Future<List<InstalledApp>> _loadFuture;
+  late Set<String> _selected;
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _manualCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<String>.from(widget.initialIds);
+    _loadFuture = InstalledAppsLoader.load();
+    _searchCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _manualCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _filter => _searchCtrl.text.trim().toLowerCase();
+
+  Iterable<InstalledApp> _filterApps(List<InstalledApp> apps) {
+    if (_filter.isEmpty) {
+      return apps;
+    }
+    return apps.where(
+      (InstalledApp a) =>
+          a.label.toLowerCase().contains(_filter) || a.id.toLowerCase().contains(_filter),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double h = MediaQuery.of(context).size.height * 0.82;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: h,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Row(
+                children: <Widget>[
+                  const Expanded(
+                    child: Text(
+                      'Exclude from VPN',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            if (widget.isIos)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'iOS does not allow listing installed apps. Add bundle IDs manually below.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Search…',
+                  prefixIcon: Icon(Icons.search, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _manualCtrl,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                      decoration: const InputDecoration(
+                        hintText: 'Add ID manually (package / bundle / key)',
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _addManual(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _addManual,
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: FutureBuilder<List<InstalledApp>>(
+                future: _loadFuture,
+                builder: (BuildContext context, AsyncSnapshot<List<InstalledApp>> snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Could not load list: ${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    );
+                  }
+                  final List<InstalledApp> apps = snapshot.data ?? <InstalledApp>[];
+                  final List<InstalledApp> shown = _filterApps(apps).toList();
+                  if (shown.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'No matching apps. Use manual entry above.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    itemCount: shown.length,
+                    itemBuilder: (BuildContext context, int i) {
+                      final InstalledApp app = shown[i];
+                      final bool checked = _selected.contains(app.id);
+                      return CheckboxListTile(
+                        value: checked,
+                        onChanged: (bool? v) {
+                          setState(() {
+                            if (v == true) {
+                              _selected.add(app.id);
+                            } else {
+                              _selected.remove(app.id);
+                            }
+                          });
+                        },
+                        title: Text(app.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          app.id,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(_selected),
+                      child: const Text('Apply'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addManual() {
+    final String t = _manualCtrl.text.trim();
+    if (t.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selected.add(t);
+      _manualCtrl.clear();
+    });
   }
 }
