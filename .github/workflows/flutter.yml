@@ -547,18 +547,17 @@ jobs:
       - name: Подготовка данных релиза
         id: meta
         run: |
-          LATEST_TAG="$(git tag -l | grep -E '^(v)?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
-          PREFIX=""
-          BASE_VERSION="$LATEST_TAG"
-
-          if [ -z "$LATEST_TAG" ]; then
-            BASE_VERSION="0.0.0"
-          elif [ "${LATEST_TAG#v}" != "$LATEST_TAG" ]; then
-            PREFIX="v"
-            BASE_VERSION="${LATEST_TAG#v}"
+          APP_VERSION="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml | head -n 1)"
+          if [ -z "$APP_VERSION" ]; then
+            echo "Не удалось определить версию приложения из pubspec.yaml."
+            exit 1
           fi
 
-          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          LATEST_TAG="$(git tag -l | grep -E '^(v)?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          PREFIX=""
+          if [ -n "$LATEST_TAG" ] && [ "${LATEST_TAG#v}" != "$LATEST_TAG" ]; then
+            PREFIX="v"
+          fi
 
           if [ -n "$LATEST_TAG" ]; then
             RANGE="$LATEST_TAG..HEAD"
@@ -566,31 +565,14 @@ jobs:
             RANGE="HEAD"
           fi
 
-          COMMITS="$(git log --no-merges --format='%s' "$RANGE")"
-          BUMP=""
-
-          if printf '%s\n' "$COMMITS" | grep -Eiq '^break([(:! ]|$)'; then
-            BUMP="major"
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-          elif printf '%s\n' "$COMMITS" | grep -Eiq '^feat([(:! ]|$)'; then
-            BUMP="minor"
-            MINOR=$((MINOR + 1))
-            PATCH=0
-          elif printf '%s\n' "$COMMITS" | grep -Eiq '^fix([(:! ]|$)'; then
-            BUMP="patch"
-            PATCH=$((PATCH + 1))
-          fi
-
-          NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          NEXT_VERSION="$APP_VERSION"
           NEXT_TAG="${PREFIX}${NEXT_VERSION}"
 
           {
             echo "previous_tag=$LATEST_TAG"
             echo "range=$RANGE"
-            echo "bump=$BUMP"
-            echo "should_release=$([ -n "$BUMP" ] && echo true || echo false)"
+            echo "bump=pubspec"
+            echo "should_release=$([ "$LATEST_TAG" != "$NEXT_TAG" ] && echo true || echo false)"
             echo "tag_name=$NEXT_TAG"
             echo "release_name=$NEXT_TAG"
             echo "android_name=vkpn-${NEXT_TAG}-android.apk"

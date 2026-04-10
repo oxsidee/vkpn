@@ -47,3 +47,4 @@ app.*.map.json
 # Generated upstream vk-turn binaries
 /assets/bin/
 /android/app/src/main/jniLibs/
+/android/keystore/
