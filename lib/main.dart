@@ -743,6 +743,18 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _excludedAppsSummary(),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: <Widget>[
                     Expanded(

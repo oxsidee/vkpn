@@ -27,6 +27,7 @@ void main() {
           threads: 8,
           wgConfigText: '[Interface]\nPrivateKey = secret',
           wgConfigFileName: 'vpn.conf',
+          excludedAppPackages: 'com.example.app',
         ),
       );
 
@@ -89,6 +90,7 @@ void main() {
           threads: 8,
           wgConfigText: '[Interface]\nPrivateKey = mac',
           wgConfigFileName: 'mac.conf',
+          excludedAppPackages: '',
         ),
       );
 

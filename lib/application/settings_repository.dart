@@ -20,6 +20,7 @@ class SettingsRepository {
   static const _kThreads = 'threads';
   static const _kWgConfigText = 'wgConfigText';
   static const _kWgConfigFileName = 'wgConfigFileName';
+  static const _kExcludedAppPackages = 'excludedAppPackages';
   static const _kAppleAppGroup = 'group.space.iscreation.vkpn';
 
   static final FlutterSecureStorage _defaultSecureStorage =
@@ -61,6 +62,7 @@ class SettingsRepository {
     await prefs.setBool(_kUseTurnMode, settings.useTurnMode);
     await prefs.setInt(_kThreads, settings.threads);
     await prefs.setString(_kWgConfigFileName, settings.wgConfigFileName);
+    await prefs.setString(_kExcludedAppPackages, settings.excludedAppPackages);
     await _writeSecret(
       prefs: prefs,
       key: _kVkCallLink,
