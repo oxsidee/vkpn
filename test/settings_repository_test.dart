@@ -1,8 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:vkpn/application/app_settings.dart';
-import 'package:vkpn/application/settings_repository.dart';
+import 'package:vkpn/features/profiles/domain/entities/wg_tunnel_profile.dart';
+import 'package:vkpn/features/settings/data/settings_repository_impl.dart';
+import 'package:vkpn/features/settings/domain/entities/app_settings.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,7 @@ void main() {
   test(
     'stores sensitive settings in secure storage instead of shared preferences',
     () async {
-      final repository = SettingsRepository(useSecureStorage: true);
+      final repository = SettingsRepositoryImpl(useSecureStorage: true);
       final prefs = await SharedPreferences.getInstance();
 
       await repository.save(
@@ -28,6 +29,10 @@ void main() {
           wgConfigText: '[Interface]\nPrivateKey = secret',
           wgConfigFileName: 'vpn.conf',
           excludedAppPackages: 'com.example.app',
+          profiles: const <WgTunnelProfile>[],
+          activeProfileId: null,
+          localeCode: null,
+          customArbContent: null,
         ),
       );
 
@@ -55,7 +60,7 @@ void main() {
       'wgConfigFileName': 'legacy.conf',
     });
 
-    final repository = SettingsRepository(useSecureStorage: true);
+    final repository = SettingsRepositoryImpl(useSecureStorage: true);
     final settings = await repository.load();
     final prefs = await SharedPreferences.getInstance();
     final storage = FlutterSecureStorage();
@@ -78,7 +83,7 @@ void main() {
   test(
     'keeps sensitive settings in shared preferences when secure storage is disabled',
     () async {
-      final repository = SettingsRepository(useSecureStorage: false);
+      final repository = SettingsRepositoryImpl(useSecureStorage: false);
       final prefs = await SharedPreferences.getInstance();
 
       await repository.save(
@@ -91,6 +96,10 @@ void main() {
           wgConfigText: '[Interface]\nPrivateKey = mac',
           wgConfigFileName: 'mac.conf',
           excludedAppPackages: '',
+          profiles: const <WgTunnelProfile>[],
+          activeProfileId: null,
+          localeCode: null,
+          customArbContent: null,
         ),
       );
 

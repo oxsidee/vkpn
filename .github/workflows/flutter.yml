@@ -569,6 +569,7 @@ jobs:
           NEXT_TAG="${PREFIX}${NEXT_VERSION}"
 
           {
+            echo "app_version=$APP_VERSION"
             echo "previous_tag=$LATEST_TAG"
             echo "range=$RANGE"
             echo "bump=pubspec"
@@ -590,10 +591,35 @@ jobs:
         id: notes
         if: steps.meta.outputs.should_release == 'true'
         env:
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
           PREVIOUS_TAG: ${{ steps.meta.outputs.previous_tag }}
           NEXT_TAG: ${{ steps.meta.outputs.tag_name }}
           RANGE: ${{ steps.meta.outputs.range }}
         run: |
+          set -euo pipefail
+
+          extract_changelog_section() {
+            local ver="$1"
+            local file="${2:-CHANGELOG.md}"
+            [ -f "$file" ] || return 1
+            awk -v v="$ver" '
+              BEGIN { re = "^## \\[" v "\\]" }
+              $0 ~ re { grab = 1; print; next }
+              grab && /^## \[/ { exit }
+              grab { print }
+            ' "$file"
+          }
+
+          NOTES_TMP="release-notes.md.tmp"
+          if extract_changelog_section "$APP_VERSION" > "$NOTES_TMP" && [ -s "$NOTES_TMP" ]; then
+            mv "$NOTES_TMP" release-notes.md
+            echo "Заметки релиза взяты из CHANGELOG.md (версия $APP_VERSION)."
+            exit 0
+          fi
+          rm -f "$NOTES_TMP"
+
+          echo "CHANGELOG.md: секция для $APP_VERSION не найдена или пуста — используем git log." >&2
+
           strip_prefix() {
             sed -E 's/^(feat|fix|break)([(!:]|[[:space:]])+[[:space:]]*//I'
           }
@@ -601,10 +627,6 @@ jobs:
           FEATURES="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^feat([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
           FIXES="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^fix([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
           BREAKING="$(git log --no-merges --format='%s (%h)' "$RANGE" | grep -Ei '^break([(:! ]|$)' | strip_prefix | LC_ALL=C sort -f || true)"
-
-          {
-            echo "body_path=release-notes.md"
-          } >> "$GITHUB_OUTPUT"
 
           {
             if [ -n "$BREAKING" ]; then
@@ -671,8 +693,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Пропуск релиза без семантических коммитов
+      - name: Пропуск релиза (тег уже существует)
         if: steps.meta.outputs.should_release != 'true'
         run: |
-          echo "Новый релиз не создан."
-          echo "После последнего тега не найдено коммитов с префиксами break, feat или fix."
+          echo "Новый релиз не создан: тег для версии из pubspec уже есть (или совпадает с последним тегом)."

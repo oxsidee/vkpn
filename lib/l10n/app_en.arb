@@ -1,0 +1,82 @@
+{
+  "@@locale": "en",
+  "appTitle": "VkPN",
+  "batteryOptimizationTitle": "Disable Battery Optimization",
+  "batteryOptimizationBody": "To keep VPN stable in background, disable battery optimization for VkPN.",
+  "later": "Later",
+  "openSettings": "Open Settings",
+  "vkCallLink": "VK call link",
+  "vkCallHint": "https://vk.ru/call/join/...",
+  "proxyPort": "Proxy port",
+  "threads": "Threads",
+  "useUdp": "Use UDP",
+  "excludedAppsTitle": "Excluded apps (bypass VPN)",
+  "selectInstalledApps": "Select installed apps…",
+  "noneSelected": "None selected",
+  "appsSelectedCount": "{count} apps selected",
+  "@appsSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importConf": "Import .conf",
+  "currentConf": "Current conf: {name}",
+  "@currentConf": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wgConfigNotLoaded": "WG config not loaded",
+  "connect": "Connect",
+  "disconnect": "Disconnect",
+  "received": "Received",
+  "sent": "Sent",
+  "copy": "COPY",
+  "clear": "CLEAR",
+  "logsCopied": "Logs copied",
+  "modeWg": "WG",
+  "modeWgTurn": "WG+TURN",
+  "excludeFromVpn": "Exclude from VPN",
+  "search": "Search…",
+  "addIdManual": "Add ID manually (package / bundle / key)",
+  "add": "Add",
+  "cancel": "Cancel",
+  "apply": "Apply",
+  "noMatchingApps": "No matching apps. Use manual entry above.",
+  "iosAppsListDisabled": "iOS does not allow listing installed apps. Add bundle IDs manually below.",
+  "couldNotLoadList": "Could not load list: {error}",
+  "@couldNotLoadList": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profilesSection": "Profiles",
+  "addProfile": "Add",
+  "renameProfile": "Rename",
+  "duplicateProfile": "Duplicate",
+  "deleteProfile": "Delete",
+  "profileName": "Profile name",
+  "advancedSection": "Advanced",
+  "appSettingsSection": "App settings",
+  "language": "Language",
+  "langSystem": "System default",
+  "langEnglish": "English",
+  "langRussian": "Русский",
+  "langCustomArb": "Custom .arb",
+  "loadCustomArb": "Load custom .arb translations",
+  "exportCustomArb": "Export current language (.arb)",
+  "clearCustomArb": "Clear custom translations",
+  "customArbLoaded": "Custom translations loaded",
+  "customArbExported": "Translation file saved",
+  "customArbCleared": "Custom translations cleared",
+  "vkLinkRequired": "VK call link is required (app field or #@wgt:VKLink in config).",
+  "wgConfigRequired": "WireGuard config is not loaded.",
+  "permissionsDenied": "App permissions denied.",
+  "vpnPermissionRequired": "VPN permission required. Allow it and tap Connect again."
+}
