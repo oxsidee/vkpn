@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vkpn/domain/wg_config_parser.dart';
+import 'package:vkpn/features/vpn/data/wg_config_parser.dart';
 
 void main() {
   const sample = '''
@@ -50,5 +50,30 @@ Endpoint = 194.180.206.205:51820
 ''';
     final out = parser.mergeExcludedApplications(withExcluded, <String>['com.new.app']);
     expect(out.contains('ExcludedApplications = com.old.app, com.new.app'), isTrue);
+  });
+
+  test('parseWgtExtensions reads kiper292-style directives', () {
+    const conf = '''
+[Peer]
+Endpoint = 127.0.0.1:9000
+# [Peer] TURN extensions
+#@wgt:EnableTURN = true
+#@wgt:UseUDP = false
+#@wgt:IPPort = 185.50.203.4:56000
+#@wgt:VKLink = https://vk.com/call/join/Zq
+#@wgt:StreamNum = 4
+#@wgt:LocalPort = 9000
+#@wgt:Mode = vk_link
+''';
+    final parser = WgConfigParser();
+    final w = parser.parseWgtExtensions(conf);
+    expect(w.enableTurn, isTrue);
+    expect(w.useUdp, isFalse);
+    expect(w.ipPortHost, '185.50.203.4');
+    expect(w.ipPortPort, 56000);
+    expect(w.vkLink, contains('vk.com/call'));
+    expect(w.streamNum, 4);
+    expect(w.localPort, 9000);
+    expect(w.mode, 'vk_link');
   });
 }

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vkpn/application/log_sanitizer.dart';
+import 'package:vkpn/core/common/log_sanitizer.dart';
 
 void main() {
   test('redacts vk-turn command arguments and call URLs', () {
