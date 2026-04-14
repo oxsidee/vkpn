@@ -23,7 +23,8 @@ class AppSettings {
   final int threads;
   final String wgConfigText;
   final String wgConfigFileName;
-  /// Android: package names (comma or newline), [Interface] ExcludedApplications — bypass VPN.
+  /// Android: package names → [Interface] ExcludedApplications. Windows: hostnames/IPv4 for /32 routes
+  /// in bypass of WG (see [parseWindowsExcludedRouteTokens]); true per-app exclusion is not available.
   final String excludedAppPackages;
 
   final List<WgTunnelProfile> profiles;

@@ -34,6 +34,11 @@
   "apply": "Применить",
   "noMatchingApps": "Нет совпадений. Введите ID выше.",
   "iosAppsListDisabled": "iOS не показывает список приложений. Укажите bundle ID вручную.",
+  "windowsBypassVpnHint": "В Windows нельзя исключить приложение из WireGuard как на Android. Укажите IPv4 или имена хостов (например сервера игры) — трафик к ним пойдёт в обход туннеля через маршруты /32. Имена пакетов Android игнорируются.",
+  "windowsAddHostOrIpManual": "Имя хоста или IPv4 (например api.example.com)",
+  "manualExclusionOnly": "Добавляйте записи вручную в поле выше.",
+  "excludedEntryEditTitle": "Изменить запись",
+  "excludedEntryRemove": "Удалить",
   "couldNotLoadList": "Не удалось загрузить список: {error}",
   "profilesSection": "Профили",
   "addProfile": "Добавить",
@@ -57,5 +62,10 @@
   "vkLinkRequired": "Нужна ссылка на звонок VK (поле в приложении или #@wgt:VKLink в конфиге).",
   "wgConfigRequired": "Конфиг WireGuard не загружен.",
   "permissionsDenied": "Разрешения приложения отклонены.",
-  "vpnPermissionRequired": "Нужно разрешение VPN. Разрешите и снова нажмите Подключить."
+  "vpnPermissionRequired": "Нужно разрешение VPN. Разрешите и снова нажмите Подключить.",
+  "trayStatusConnected": "Статус: подключено",
+  "trayStatusDisconnected": "Статус: не подключено",
+  "trayConnectWg": "Подключить WG",
+  "trayConnectWgTurn": "Подключить WG+TURN",
+  "trayExit": "Выход"
 }

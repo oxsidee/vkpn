@@ -52,6 +52,44 @@ Endpoint = 194.180.206.205:51820
     expect(out.contains('ExcludedApplications = com.old.app, com.new.app'), isTrue);
   });
 
+  test('parseInterfaceDnsIpv4Addresses returns only IPv4 DNS', () {
+    const conf = '''
+[Interface]
+PrivateKey = x
+Address = 10.0.0.4/32
+DNS = 192.168.0.1, 77.88.8.8, lan
+
+[Peer]
+PublicKey = y
+AllowedIPs = 0.0.0.0/0
+Endpoint = 1.2.3.4:51820
+''';
+    final parser = WgConfigParser();
+    expect(parser.parseInterfaceDnsIpv4Addresses(conf), <String>['192.168.0.1', '77.88.8.8']);
+  });
+
+  test('applyWindowsDefaultRouteAllowedIpsFix splits default IPv4 and IPv6 routes', () {
+    final parser = WgConfigParser();
+    const conf = '''
+[Interface]
+Address = 10.0.0.3/32
+PrivateKey = testPrivate
+
+[Peer]
+PublicKey = testPublic
+AllowedIPs = 10.1.0.0/16, 0.0.0.0/0, ::/0
+Endpoint = 194.180.206.205:51820
+''';
+    final out = parser.applyWindowsDefaultRouteAllowedIpsFix(conf);
+    expect(
+      out.contains(
+        'AllowedIPs= 10.1.0.0/16, 0.0.0.0/1, 128.0.0.0/1, ::/1, 8000::/1',
+      ),
+      isTrue,
+      reason: out,
+    );
+  });
+
   test('parseWgtExtensions reads kiper292-style directives', () {
     const conf = '''
 [Peer]

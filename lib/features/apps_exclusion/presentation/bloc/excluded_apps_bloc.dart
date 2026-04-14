@@ -11,6 +11,8 @@ class ExcludedAppsBloc extends Bloc<ExcludedAppsEvent, ExcludedAppsState> {
     on<ExcludedAppsSearchChanged>(_onSearchChanged);
     on<ExcludedAppsToggled>(_onToggled);
     on<ExcludedAppsManualIdAdded>(_onManualIdAdded);
+    on<ExcludedAppsManualEntryRemoved>(_onManualEntryRemoved);
+    on<ExcludedAppsManualEntryUpdated>(_onManualEntryUpdated);
   }
 
   Future<void> _onStarted(
@@ -25,6 +27,16 @@ class ExcludedAppsBloc extends Bloc<ExcludedAppsEvent, ExcludedAppsState> {
       ),
     );
     try {
+      if (!event.loadInstalledList) {
+        emit(
+          state.copyWith(
+            status: ExcludedAppsStatus.success,
+            apps: const <InstalledApp>[],
+            clearLoadError: true,
+          ),
+        );
+        return;
+      }
       final apps = await InstalledAppsLoader.load();
       emit(
         state.copyWith(
@@ -71,6 +83,29 @@ class ExcludedAppsBloc extends Bloc<ExcludedAppsEvent, ExcludedAppsState> {
     final t = event.rawId.trim();
     if (t.isEmpty) return;
     final next = Set<String>.from(state.selectedIds)..add(t);
+    emit(state.copyWith(selectedIds: next));
+  }
+
+  void _onManualEntryRemoved(
+    ExcludedAppsManualEntryRemoved event,
+    Emitter<ExcludedAppsState> emit,
+  ) {
+    final next = Set<String>.from(state.selectedIds)..remove(event.entry);
+    emit(state.copyWith(selectedIds: next));
+  }
+
+  void _onManualEntryUpdated(
+    ExcludedAppsManualEntryUpdated event,
+    Emitter<ExcludedAppsState> emit,
+  ) {
+    final from = event.from.trim();
+    final to = event.to.trim();
+    if (from.isEmpty || to.isEmpty) {
+      return;
+    }
+    final next = Set<String>.from(state.selectedIds)
+      ..remove(from)
+      ..add(to);
     emit(state.copyWith(selectedIds: next));
   }
 }

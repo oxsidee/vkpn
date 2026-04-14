@@ -302,6 +302,36 @@ abstract class AppLocalizations {
   /// **'iOS does not allow listing installed apps. Add bundle IDs manually below.'**
   String get iosAppsListDisabled;
 
+  /// No description provided for @windowsBypassVpnHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows cannot exclude apps from WireGuard the same way as Android. Add IPv4 addresses or hostnames (e.g. game servers); traffic to them will bypass the tunnel via host routes. Android-style package names are ignored.'**
+  String get windowsBypassVpnHint;
+
+  /// No description provided for @windowsAddHostOrIpManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Hostname or IPv4 (e.g. api.example.com)'**
+  String get windowsAddHostOrIpManual;
+
+  /// No description provided for @manualExclusionOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the field above to add entries manually.'**
+  String get manualExclusionOnly;
+
+  /// No description provided for @excludedEntryEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit entry'**
+  String get excludedEntryEditTitle;
+
+  /// No description provided for @excludedEntryRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get excludedEntryRemove;
+
   /// No description provided for @couldNotLoadList.
   ///
   /// In en, this message translates to:
@@ -445,6 +475,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'VPN permission required. Allow it and tap Connect again.'**
   String get vpnPermissionRequired;
+
+  /// No description provided for @trayStatusConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Status: connected'**
+  String get trayStatusConnected;
+
+  /// No description provided for @trayStatusDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Status: disconnected'**
+  String get trayStatusDisconnected;
+
+  /// No description provided for @trayConnectWg.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect WG'**
+  String get trayConnectWg;
+
+  /// No description provided for @trayConnectWgTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect WG+TURN'**
+  String get trayConnectWgTurn;
+
+  /// No description provided for @trayExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit'**
+  String get trayExit;
 }
 
 class _AppLocalizationsDelegate

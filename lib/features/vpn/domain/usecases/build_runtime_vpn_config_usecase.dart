@@ -15,6 +15,14 @@ class BuildRuntimeVpnConfigUseCase {
   /// Must stay excluded in WG+TURN so local vk-turn traffic is not looped into the tunnel.
   static const String androidVkpnPackageId = 'space.iscreation.vkpn';
 
+  /// Applies [WgConfigParser.applyWindowsDefaultRouteAllowedIpsFix] when needed.
+  String prepareWireGuardConfigForOs(String wgQuickConfig, {required bool isWindows}) {
+    if (!isWindows) {
+      return wgQuickConfig;
+    }
+    return parser.applyWindowsDefaultRouteAllowedIpsFix(wgQuickConfig);
+  }
+
   RuntimeVpnConfig call(
     String rawConfig,
     AppSettings settings, {

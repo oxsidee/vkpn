@@ -48,6 +48,11 @@
   "apply": "Apply",
   "noMatchingApps": "No matching apps. Use manual entry above.",
   "iosAppsListDisabled": "iOS does not allow listing installed apps. Add bundle IDs manually below.",
+  "windowsBypassVpnHint": "Windows cannot exclude apps from WireGuard the same way as Android. Add IPv4 addresses or hostnames (e.g. game servers); traffic to them will bypass the tunnel via host routes. Android-style package names are ignored.",
+  "windowsAddHostOrIpManual": "Hostname or IPv4 (e.g. api.example.com)",
+  "manualExclusionOnly": "Use the field above to add entries manually.",
+  "excludedEntryEditTitle": "Edit entry",
+  "excludedEntryRemove": "Remove",
   "couldNotLoadList": "Could not load list: {error}",
   "@couldNotLoadList": {
     "placeholders": {
@@ -78,5 +83,10 @@
   "vkLinkRequired": "VK call link is required (app field or #@wgt:VKLink in config).",
   "wgConfigRequired": "WireGuard config is not loaded.",
   "permissionsDenied": "App permissions denied.",
-  "vpnPermissionRequired": "VPN permission required. Allow it and tap Connect again."
+  "vpnPermissionRequired": "VPN permission required. Allow it and tap Connect again.",
+  "trayStatusConnected": "Status: connected",
+  "trayStatusDisconnected": "Status: disconnected",
+  "trayConnectWg": "Connect WG",
+  "trayConnectWgTurn": "Connect WG+TURN",
+  "trayExit": "Exit"
 }

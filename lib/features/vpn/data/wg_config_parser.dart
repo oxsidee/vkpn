@@ -313,4 +313,87 @@ class WgConfigParser {
     }
     return (host, port);
   }
+
+  /// On Windows, a single peer with `AllowedIPs` containing `0.0.0.0/0` or `::/0`
+  /// enables wireguard-windows "kill-switch" firewall rules: DNS to port 53 is
+  /// allowed only toward [Interface].DNS. Missing or broken DNS then breaks all
+  /// name resolution ("no internet"). Replacing `/0` with two `/1` halves matches
+  /// official wireguard-windows guidance and preserves full-tunnel routing.
+  String applyWindowsDefaultRouteAllowedIpsFix(String input) {
+    final lines = input.split('\n');
+    var inPeer = false;
+    final out = <String>[];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        final name = trimmed.substring(1, trimmed.length - 1).trim().toLowerCase();
+        inPeer = name == 'peer';
+        out.add(line);
+        continue;
+      }
+      if (trimmed.isEmpty || trimmed.startsWith('#') || trimmed.startsWith(';')) {
+        out.add(line);
+        continue;
+      }
+      if (inPeer && trimmed.contains('=')) {
+        final idx = line.indexOf('=');
+        final key = line.substring(0, idx).trim().toLowerCase();
+        if (key == 'allowedips') {
+          final value = line.substring(idx + 1);
+          final newValue = _splitCsv(value)
+              .expand<String>((e) {
+                if (e == '0.0.0.0/0') {
+                  return <String>['0.0.0.0/1', '128.0.0.0/1'];
+                }
+                if (e == '::/0') {
+                  return <String>['::/1', '8000::/1'];
+                }
+                return <String>[e];
+              })
+              .join(', ');
+          final keyRaw = line.substring(0, idx).trimRight();
+          out.add('$keyRaw= $newValue');
+          continue;
+        }
+      }
+      out.add(line);
+    }
+    return out.join('\n');
+  }
+
+  /// IPv4-only entries from [Interface].DNS (search domains ignored).
+  List<String> parseInterfaceDnsIpv4Addresses(String input) {
+    final sections = _splitSections(input);
+    final iface = sections['Interface'];
+    if (iface == null) {
+      return <String>[];
+    }
+    final dnsRaw = iface['DNS'];
+    if (dnsRaw == null || dnsRaw.trim().isEmpty) {
+      return <String>[];
+    }
+    final out = <String>[];
+    for (final e in _splitCsv(dnsRaw)) {
+      final t = e.trim();
+      if (_isBareIpv4DottedDecimal(t)) {
+        out.add(t);
+      }
+    }
+    return out;
+  }
+
+  bool _isBareIpv4DottedDecimal(String t) {
+    final parts = t.split('.');
+    if (parts.length != 4) {
+      return false;
+    }
+    for (final p in parts) {
+      final n = int.tryParse(p);
+      if (n == null || n < 0 || n > 255) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

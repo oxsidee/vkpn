@@ -1,8 +1,10 @@
-import 'package:flutter/foundation.dart' show mapEquals, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, ValueNotifier, defaultTargetPlatform, mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:vkpn/core/l10n/l10n_helpers.dart';
+import 'package:vkpn/core/platform/windows_tray_menu_host.dart';
 import 'package:vkpn/features/home/presentation/bloc/home_cubit.dart';
 import 'package:vkpn/features/home/presentation/home_page.dart';
 import 'package:vkpn/features/settings/data/file_picker_gateway_impl.dart';
@@ -205,7 +207,9 @@ class _VkpnAppState extends State<VkpnApp> {
             },
           );
         },
-        home: const HomeScreen(),
+        home: defaultTargetPlatform == TargetPlatform.windows
+            ? const WindowsTrayMenuHost(child: HomeScreen())
+            : const HomeScreen(),
       ),
     );
   }

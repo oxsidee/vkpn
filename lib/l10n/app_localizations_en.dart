@@ -117,6 +117,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'iOS does not allow listing installed apps. Add bundle IDs manually below.';
 
   @override
+  String get windowsBypassVpnHint =>
+      'Windows cannot exclude apps from WireGuard the same way as Android. Add IPv4 addresses or hostnames (e.g. game servers); traffic to them will bypass the tunnel via host routes. Android-style package names are ignored.';
+
+  @override
+  String get windowsAddHostOrIpManual =>
+      'Hostname or IPv4 (e.g. api.example.com)';
+
+  @override
+  String get manualExclusionOnly =>
+      'Use the field above to add entries manually.';
+
+  @override
+  String get excludedEntryEditTitle => 'Edit entry';
+
+  @override
+  String get excludedEntryRemove => 'Remove';
+
+  @override
   String couldNotLoadList(String error) {
     return 'Could not load list: $error';
   }
@@ -191,4 +209,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vpnPermissionRequired =>
       'VPN permission required. Allow it and tap Connect again.';
+
+  @override
+  String get trayStatusConnected => 'Status: connected';
+
+  @override
+  String get trayStatusDisconnected => 'Status: disconnected';
+
+  @override
+  String get trayConnectWg => 'Connect WG';
+
+  @override
+  String get trayConnectWgTurn => 'Connect WG+TURN';
+
+  @override
+  String get trayExit => 'Exit';
 }

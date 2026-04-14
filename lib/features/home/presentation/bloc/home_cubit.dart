@@ -8,6 +8,7 @@ import 'package:vkpn/core/l10n/l10n_helpers.dart';
 import 'package:vkpn/core/common/log_sanitizer.dart';
 import 'package:vkpn/core/platform/desktop_turn_runtime.dart';
 import 'package:vkpn/core/platform/unified_platform_bridge.dart';
+import 'package:vkpn/core/platform/windows_wg_host_route_bypass.dart';
 import 'package:vkpn/features/home/domain/entities/home_error_code.dart';
 import 'package:vkpn/features/home/domain/usecases/map_home_error_message_usecase.dart';
 import 'package:vkpn/features/apps_exclusion/domain/usecases/build_excluded_apps_summary_usecase.dart';
@@ -502,6 +503,18 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
+  /// Подключение с выбором режима (для меню в трее Windows).
+  Future<void> connectWithTurnMode(bool useTurnMode) async {
+    emit(
+      state.copyWith(
+        useTurnMode: useTurnMode,
+        clearLocalizedError: true,
+        clearLastError: true,
+      ),
+    );
+    await connect();
+  }
+
   Future<void> connect() async {
     final preIssue = _validateConnectInputs.forRawWgConfig(state.wgConfigText);
     if (preIssue != null) {
@@ -607,6 +620,10 @@ class HomeCubit extends Cubit<HomeState> {
       }
 
       var wgConfigToUse = config.rawConfig;
+      final List<String> windowsExcludedHosts = Platform.isWindows
+          ? parseWindowsExcludedRouteTokens(state.excludedAppPackages)
+          : <String>[];
+
       if (config.useTurnMode) {
         if (_isDesktop) {
           await _desktopTurnRuntime.start(
@@ -619,6 +636,14 @@ class HomeCubit extends Cubit<HomeState> {
             listenPort: config.localEndpointPort,
             onLog: _appendLogLine,
           );
+          if (Platform.isWindows) {
+            await _desktopTurnRuntime.waitForWindowsPreflightBeforeWireGuard(
+              listenHost: config.localEndpointHost,
+              listenPort: config.localEndpointPort,
+              onLog: _appendLogLine,
+            );
+            await Future<void>.delayed(const Duration(seconds: 2));
+          }
           wgConfigToUse = config.rewrittenConfig;
         } else if (_isIOS) {
           emit(
@@ -635,6 +660,17 @@ class HomeCubit extends Cubit<HomeState> {
           );
         }
       }
+      if (Platform.isWindows &&
+          windowsExcludedHosts.isNotEmpty &&
+          !(config.useTurnMode && _isDesktop)) {
+        await WindowsWgHostRouteBypass.shared.ensureGatewayCaptured(_appendLogLine);
+      }
+      if (Platform.isWindows) {
+        wgConfigToUse = _buildRuntimeConfig.prepareWireGuardConfigForOs(
+          wgConfigToUse,
+          isWindows: true,
+        );
+      }
       await _wireguard.startVpn(
         serverAddress: config.useTurnMode
             ? '${config.localEndpointHost}:${config.localEndpointPort}'
@@ -645,6 +681,24 @@ class HomeCubit extends Cubit<HomeState> {
             : '',
       );
       if (isClosed) return;
+      if (Platform.isWindows && windowsExcludedHosts.isNotEmpty) {
+        await WindowsWgHostRouteBypass.shared.ensureGatewayCaptured(_appendLogLine);
+        for (final t in windowsExcludedHosts) {
+          final ips = await WindowsWgHostRouteBypass.resolveIpv4Addresses(t);
+          if (ips.isEmpty) {
+            _appendLogLine(
+              'WGT: Windows split: no IPv4 for "$t" (use hostname or IPv4; Android package ids are ignored).',
+            );
+            continue;
+          }
+          await WindowsWgHostRouteBypass.shared.addRoutesForIpv4s(
+            ips,
+            _appendLogLine,
+            logPrefix: 'WGT: Windows split (bypass WG)',
+          );
+        }
+      }
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: 'connected',
@@ -653,6 +707,9 @@ class HomeCubit extends Cubit<HomeState> {
         ),
       );
     } catch (e) {
+      if (Platform.isWindows) {
+        await WindowsWgHostRouteBypass.shared.clear(onLog: null);
+      }
       if (_isDesktop) {
         await _desktopTurnRuntime.stop();
       }
@@ -669,6 +726,9 @@ class HomeCubit extends Cubit<HomeState> {
   Future<void> disconnect() async {
     if (!_isAndroid) {
       try {
+        if (Platform.isWindows) {
+          await WindowsWgHostRouteBypass.shared.clear(onLog: null);
+        }
         if (_isDesktop) {
           await _desktopTurnRuntime.stop();
         }

@@ -1,9 +1,15 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/widgets.dart';
 import 'package:vkpn/app/vkpn_app.dart';
+import 'package:vkpn/core/platform/windows_tray_shell.dart';
 import 'package:vkpn/features/settings/data/settings_repository_impl.dart';
 
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isWindows) {
+    await initWindowsTrayShell();
+  }
   final repo = SettingsRepositoryImpl();
   final loaded = await repo.load();
   final initial = loaded.normalizeLocaleForStoredCustomArb();

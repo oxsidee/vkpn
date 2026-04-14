@@ -117,6 +117,23 @@ class AppLocalizationsRu extends AppLocalizations {
       'iOS не показывает список приложений. Укажите bundle ID вручную.';
 
   @override
+  String get windowsBypassVpnHint =>
+      'В Windows нельзя исключить приложение из WireGuard как на Android. Укажите IPv4 или имена хостов (например сервера игры) — трафик к ним пойдёт в обход туннеля через маршруты /32. Имена пакетов Android игнорируются.';
+
+  @override
+  String get windowsAddHostOrIpManual =>
+      'Имя хоста или IPv4 (например api.example.com)';
+
+  @override
+  String get manualExclusionOnly => 'Добавляйте записи вручную в поле выше.';
+
+  @override
+  String get excludedEntryEditTitle => 'Изменить запись';
+
+  @override
+  String get excludedEntryRemove => 'Удалить';
+
+  @override
   String couldNotLoadList(String error) {
     return 'Не удалось загрузить список: $error';
   }
@@ -191,4 +208,19 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get vpnPermissionRequired =>
       'Нужно разрешение VPN. Разрешите и снова нажмите Подключить.';
+
+  @override
+  String get trayStatusConnected => 'Статус: подключено';
+
+  @override
+  String get trayStatusDisconnected => 'Статус: не подключено';
+
+  @override
+  String get trayConnectWg => 'Подключить WG';
+
+  @override
+  String get trayConnectWgTurn => 'Подключить WG+TURN';
+
+  @override
+  String get trayExit => 'Выход';
 }

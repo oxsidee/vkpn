@@ -173,6 +173,7 @@ class _HomeViewState extends State<_HomeView> {
       builder: (BuildContext ctx) => ExcludedAppsSheet(
         initialIds: cubit.buildExcludedAppsSummary().ids,
         isIos: Platform.isIOS,
+        isWindows: Platform.isWindows,
       ),
     );
     if (picked == null || !mounted) return;
@@ -352,7 +353,7 @@ class _HomeViewState extends State<_HomeView> {
       child: BlocBuilder<HomeCubit, HomeState>(
         builder: (BuildContext context, HomeState state) {
           final cubit = context.read<HomeCubit>();
-          return Stack(
+          final Widget stack = Stack(
             children: <Widget>[
               Scaffold(
                 body: Container(
@@ -516,6 +517,14 @@ class _HomeViewState extends State<_HomeView> {
               if (_renameProfileOpen) _renameProfileOverlay(context),
             ],
           );
+          if (Platform.isWindows) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              child: stack,
+            );
+          }
+          return stack;
         },
       ),
     ),
