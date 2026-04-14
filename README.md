@@ -174,6 +174,9 @@ Endpoint = 127.0.0.1:9000
 - Перед сборкой Android, macOS или Windows скачайте upstream-бинарники: `bash scripts/fetch_vkturn_binaries.sh all`.  
 - **Android:** `flutter build apk` / запуск из IDE.  
 - **iOS / macOS:** Xcode, CocoaPods (`pod install` в `ios/` или `macos/`), подпись и capabilities по таблице выше.  
-- **Windows:** Visual Studio / CMake, как в стандартной инструкции Flutter для Windows.
+- **Windows:** Visual Studio / CMake, как в стандартной инструкции Flutter для Windows.  
+- **Linux:** зависимости Flutter для GTK и плагина **tray_manager** (индикатор в трее), например Ubuntu/Debian:
+  `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libayatana-appindicator3-dev`  
+  (альтернатива Ayatana — пакет `libappindicator3-dev`, если `pkg-config` находит только `appindicator3-0.1`).
 
 ---
