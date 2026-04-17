@@ -339,6 +339,23 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     ShowWindow(hwnd, SW_HIDE);
     return 0;
   }
+
+  // Автоматическое скрытие окна при клике вне его (поведение как у системного трея).
+  if (message == WM_ACTIVATE) {
+    if (LOWORD(wparam) == WA_INACTIVE) {
+      ShowWindow(hwnd, SW_HIDE);
+      return 0;
+    }
+  }
+
+  // Дополнительная защита - скрытие при потере фокуса.
+  if (message == WM_KILLFOCUS) {
+    if (IsWindowVisible(hwnd)) {
+      ShowWindow(hwnd, SW_HIDE);
+    }
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
