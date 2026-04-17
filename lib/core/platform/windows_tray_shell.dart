@@ -7,8 +7,8 @@ import 'package:vkpn/core/platform/vkpn_windows_window.dart';
 const Size _kFlyoutSize = Size(420, 680);
 
 /// Зазор между нижним краем окна и таскбаром / треем (логические px).
-/// Основной путь позиции — через [trayManager.getBounds], не через C++ [alignBottomRight].
-const double _kGapAboveTaskbar = 45;
+/// Используется в alignBottomRight для позиционирования окна.
+const double _kGapAboveTaskbar = 8;
 
 /// Трей + окно без кнопки на панели задач (аналог OneDrive).
 /// Окно управляется нативно ([vkpn/window]), без `window_manager` / `screen_retriever`.
@@ -54,17 +54,6 @@ final class VkpnWindowsChrome with TrayListener {
   }
 
   Future<void> _positionFlyout() async {
-    final Rect? tray = await trayManager.getBounds();
-    // Логические координаты как у tray_manager; нативный слой переводит в пиксели.
-    if (tray != null) {
-      final double x = tray.center.dx - _kFlyoutSize.width / 2;
-      double y = tray.top - _kFlyoutSize.height - _kGapAboveTaskbar;
-      if (y < 0) {
-        y = tray.bottom + _kGapAboveTaskbar;
-      }
-      await VkpnWindowsWindow.setPosition(x, y);
-      return;
-    }
     await VkpnWindowsWindow.alignBottomRight(marginFromBottom: _kGapAboveTaskbar);
   }
 
